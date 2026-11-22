@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0f17">
+<link rel="manifest" href="manifest.json">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1532,7 +1533,9 @@ async function universe(){
   let rows=null;
   const T=[async()=>(await _J('https://fapi.binance.com/fapi/v1/ticker/24hr')).map(x=>({s:x.symbol,chg:+x.priceChangePercent,qv:+x.quoteVolume,rg:(+x.highPrice-+x.lowPrice)/+x.lastPrice*100})),
     async()=>(await _J('https://api.bitget.com/api/v2/mix/market/tickers?productType=usdt-futures')).data.map(x=>({s:x.symbol,chg:+x.change24h*100,qv:+x.usdtVolume,rg:(+x.high24h-+x.low24h)/+x.lastPr*100})),
-    async()=>(await _J('https://api.bybit.com/v5/market/tickers?category=linear')).result.list.map(x=>({s:x.symbol,chg:+x.price24hPcnt*100,qv:+x.turnover24h,rg:(+x.highPrice24h-+x.lowPrice24h)/+x.lastPrice*100}))];
+    async()=>(await _J('https://api.bybit.com/v5/market/tickers?category=linear')).result.list.map(x=>({s:x.symbol,chg:+x.price24hPcnt*100,qv:+x.turnover24h,rg:(+x.highPrice24h-+x.lowPrice24h)/+x.lastPrice*100})),
+    async()=>(await _J('https://www.okx.com/api/v5/market/tickers?instType=SWAP')).data.filter(x=>/-USDT-SWAP$/.test(x.instId)).map(x=>({s:x.instId.replace('-USDT-SWAP','USDT'),chg:(+x.last-+x.open24h)/+x.open24h*100,qv:+x.volCcy24h*+x.last,rg:(+x.high24h-+x.low24h)/+x.last*100})),
+    async()=>(await _J('https://api.gateio.ws/api/v4/futures/usdt/tickers')).map(x=>({s:x.contract.replace('_',''),chg:+x.change_percentage,qv:+x.volume_24h_quote,rg:(+x.high_24h-+x.low_24h)/+x.last*100}))];
   for(const f of T){try{rows=await f();if(rows&&rows.length)break}catch(e){}}
   if(!rows)throw new Error('universe unavailable');
   rows=rows.filter(x=>/USDT$/.test(x.s)&&x.qv>3e7&&isFinite(x.chg)&&isFinite(x.rg));
@@ -1547,17 +1550,17 @@ async function one(u,ss){
   if(sg.entry!=null&&sg.inZone){try{const ld=await td(sym,'5m'),la=analyze(ld,n),e=la.events[la.events.length-1];sg.conf=!!(e&&e.dir===sg.dir&&e.real&&ld.length-1-e.idx<=12&&ld[e.idx].t>=(sg.tapT||0)-TFMS['15m']/2)}catch(x){}}
   let sc=u.act*.30+Math.min(er/.45,1)*20+(1-Math.min(cost*5,1))*15+ss[1]*10+(sg.entry!=null?(sg.verified?25:8):0);
   if(chop)sc*=.6;
-  return{sym,sg,atr,px,cost,pct,er,chop,ht,chg:u.chg,sc:Math.round(sc)}}
-function levels(r){const p=r.sg.plan,dir=r.sg.dir;if(!p)return'';const risk=Math.abs(p.entry-p.sl),pip=PIP[r.sym],f=x=>fmt(x,r.sym),pp=x=>pip?(Math.abs(x-p.entry)/pip).toFixed(0):(Math.abs(x-p.entry)/p.entry*100).toFixed(2)+'%',
-  tp3=p.entry+dir*3*risk,slw=p.sl-dir*.25*r.atr,lev=Math.max(1,Math.floor(50/(risk/p.entry*100)));
-  return`<div style="margin-top:6px"><b>${r.sym}</b></div><div class="kv"><div>${dir>0?'LONG':'SHORT'} entry zone</div><div>${f(p.entry)}</div><div>Stop loss range</div><div class="dn">${f(p.sl)} → ${f(slw)} (${pp(p.sl)}–${pp(slw)}${pip?' pips':''})</div><div>TP1 · TP2 · TP3</div><div class="up">${f(p.tp1)} · ${f(p.tp2)} · ${f(tp3)}</div><div>TP range</div><div>${pp(p.tp1)} – ${pp(tp3)}${pip?' pips':''}</div><div>Max leverage (SL ≤ 50% margin)</div><div>≈ ${lev}×</div></div><div class="hint">Gold pip $0.10, silver $0.01; other assets in %. Take 50% at TP1, move stop to entry. Size from Position Size card.</div>`}
+  return{sym,sg,atr,px,cost,pct,er,chop,ht,chg:u.fb&&d.length>97?(px-d[d.length-97].c)/d[d.length-97].c*100:u.chg,sc:Math.round(sc)}}
+function levels(r){const p=r.sg.plan,dir=r.sg.dir;if(!p)return'';const risk=Math.abs(p.entry-p.sl),pip=PIP[r.sym],f=x=>fmt(x,r.sym),d=x=>Math.abs(x-p.entry),pp=x=>pip?(d(x)/pip).toFixed(0):(d(x)/p.entry*100).toFixed(2)+'%',R=x=>(d(x)/risk).toFixed(1)+'R',
+  T=[p.tp1,p.tp2,p.entry+dir*3*risk].sort((x,y)=>d(x)-d(y)),slw=p.sl-dir*.25*r.atr,sp=risk/p.entry*100,sug=Math.max(1,Math.min(50,Math.floor(10/sp))),cap=Math.max(1,Math.min(50,Math.floor(30/sp))),live=r.sg.entry!=null;
+  return`<div style="margin-top:6px"><b>${r.sym}</b> ${live?'<span class="up">TRADABLE PLAN</span>':'<span class="warn">DRAFT ONLY · status '+esc(r.sg.status)+' · do not enter</span>'}</div><div class="kv"><div>${dir>0?'LONG':'SHORT'} entry zone</div><div>${f(p.entry)}</div><div>Stop loss range</div><div class="dn">${f(p.sl)} → ${f(slw)} (${pp(p.sl)}–${pp(slw)}${pip?' pips':''})</div><div>TP1 · TP2 · TP3 (nearest first)</div><div class="up">${T.map(f).join(' · ')}</div><div>Reward multiples</div><div>${T.map(R).join(' · ')}</div><div>TP range</div><div>${pp(T[0])} – ${pp(T[2])}${pip?' pips':''}</div><div>Suggested leverage (≈10% of margin lost at SL)</div><div>≈ ${sug}×</div><div>Hard cap (≈30% of margin lost at SL)</div><div class="dn">≤ ${cap}×</div></div><div class="hint">Gold pip $0.10, silver $0.01; other assets in %. Close 50% at the nearest target, then move the stop to entry. A tighter stop allows more leverage, but the loss at SL as a share of margin is what matters. Exchange limits apply (often 50× on gold/silver).</div>`}
 async function run(){
   if(AD.busy)return;AD.busy=true;
-  try{const ss=sess();let U;try{U=await universe()}catch(e){U=['XAU/USD','XAG/USD'].map(m=>({sym:m,act:40,chg:0}))}
+  try{const ss=sess();let U;let fb=false;try{U=await universe()}catch(e){fb=true;U=['XAU/USD','XAG/USD'].map(m=>({sym:m,act:40,chg:0,fb:true}))}
     const R=[];for(let i=0;i<U.length;i+=4)R.push(...await Promise.all(U.slice(i,i+4).map(u=>one(u,ss).catch(e=>({sym:u.sym,err:e.message,sc:-1})))));
-    R.sort((a,b)=>b.sc-a.sc);const ok=R.filter(r=>!r.err),best=ok.find(r=>r.sg.plan&&!r.chop)||ok[0];
+    R.sort((a,b)=>b.sc-a.sc);const ok=R.filter(r=>!r.err),best=ok.find(r=>r.sg.entry!=null&&!r.chop)||ok.find(r=>r.sg.plan&&!r.chop)||ok[0];
     const tr=r=>r.chop?'<span class="warn">CHOP</span>':r.ht>0?'<span class="up">Bull</span>':r.ht<0?'<span class="dn">Bear</span>':'–';
-    let h=`<div><b>${ss[0]}</b> · scanned ${ok.length} most active markets · ${new Date().toLocaleTimeString()}</div><div style="overflow-x:auto"><table><thead><tr><th>Asset</th><th>Score</th><th>24h</th><th>Trend</th><th>Trendiness</th><th>Status</th></tr></thead><tbody>`+ok.slice(0,10).map(r=>`<tr data-s="${r.sym}" style="cursor:pointer"><td>${r.sym}${r===best?' ★':''}</td><td>${r.sc}</td><td class="${r.chg>=0?'up':'dn'}">${r.chg.toFixed(1)}%</td><td>${tr(r)}</td><td>${(r.er*100).toFixed(0)}%</td><td>${esc(r.sg.status)}${r.sg.verified?' · verified':''}</td></tr>`).join('')+'</tbody></table></div>';
+    let h=`<div><b>${ss[0]}</b> · scanned ${ok.length} market${ok.length>1?'s':''} · feed ${BN.src||'?'} · ${new Date().toLocaleTimeString()}</div>${fb?'<div class="hint warn">Market-wide scan unavailable (ticker feeds blocked here), so only gold and silver are scanned. Turn on Cloudflare WARP or Private DNS one.one.one.one, then reload.</div>':''}<div style="overflow-x:auto"><table><thead><tr><th>Asset</th><th>Score</th><th>24h</th><th>Trend</th><th>Trendiness</th><th>Status</th></tr></thead><tbody>`+ok.slice(0,10).map(r=>`<tr data-s="${r.sym}" style="cursor:pointer"><td>${r.sym}${r===best?' ★':''}</td><td>${r.sc}</td><td class="${r.chg>=0?'up':'dn'}">${r.chg.toFixed(1)}%</td><td>${tr(r)}</td><td>${(r.er*100).toFixed(0)}%</td><td>${esc(r.sg.status)}${r.sg.verified?' · verified':''}</td></tr>`).join('')+'</tbody></table></div>';
     h+=best&&best.sg.plan?levels(best):'<div class="hint">No verified, non-choppy plan yet. Waiting; nothing is forced. Tap a row to open its chart.</div>';
     $('#adBody').innerHTML=h;
     for(const r of ok){const g=r.sg,met=/^(XAU|XAG)/.test(r.sym);if(!g.plan||!g.verified||r.chop||r.ht!==g.dir||(met&&ss[1]<.5))continue;const p=g.plan,dr=g.dir>0?'BUY':'SELL',base=r.sym+dr+fmt(p.entry,r.sym);
