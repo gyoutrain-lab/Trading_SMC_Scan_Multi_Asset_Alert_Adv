@@ -1504,6 +1504,8 @@ $('#prBtn').addEventListener('click',doPrint);
 /* ===== ALERT DESK: best gold/silver by session, confirmed-entry alarm, SL/TP ranges ===== */
 (function(){
 const AD={on:false,busy:false,sent:{},wl:null,ctx:null,ft:null},PIP={'XAU/USD':.1,'XAG/USD':.01},SY=['XAU/USD','XAG/USD'];
+function svS(){const o={},n=Date.now();for(const k in AD.sent)if(n-AD.sent[k]<216e5)o[k]=AD.sent[k];AD.sent=o;store('adSent',JSON.stringify(o))}
+try{AD.sent=JSON.parse(store('adSent')||'{}');svS()}catch(e){AD.sent={}}
 const card=document.createElement('div');card.className='card';
 card.innerHTML=`<h3>Alert Desk · most active, trending markets first (no API key)</h3><div id="adBody" class="hint">Press Start alerts. It ranks the most active liquid markets (gold, silver, crypto, TradFi perps), drops choppy ones, then applies the SMC gates.</div>
 <div class="kv" style="margin-top:8px"><div>Phone</div><div><input id="adPh" style="width:140px"></div><div>ntfy topic (push)</div><div><input id="adNt" style="width:140px" placeholder="your-secret-topic"></div></div>
@@ -1560,8 +1562,8 @@ async function run(){
     $('#adBody').innerHTML=h;
     for(const r of ok){const g=r.sg,met=/^(XAU|XAG)/.test(r.sym);if(!g.plan||!g.verified||r.chop||r.ht!==g.dir||(met&&ss[1]<.5))continue;const p=g.plan,dr=g.dir>0?'BUY':'SELL',base=r.sym+dr+fmt(p.entry,r.sym);
       const sl=`SL ${fmt(p.sl,r.sym)} TP1 ${fmt(p.tp1,r.sym)} TP2 ${fmt(p.tp2,r.sym)}`;
-      if(g.inZone&&(g.conf||g.react)&&g.grade==='A'&&!AD.sent[base+'E']){AD.sent[base+'E']=1;alarm(`${r.sym} ${dr} ENTRY confirmed at ${fmt(p.entry,r.sym)}. ${sl}`,'ENTRY')}
-      else if(!g.inZone&&g.dist<=1.5&&!AD.sent[base+'P']){AD.sent[base+'P']=1;alarm(`${r.sym} ${dr} setup approaching ${fmt(p.entry,r.sym)}. Get ready. ${sl}`,'PRE')}}
+      if(g.inZone&&(g.conf||g.react)&&g.grade==='A'&&!AD.sent[base+'E']){AD.sent[base+'E']=Date.now();svS();alarm(`${r.sym} ${dr} ENTRY confirmed at ${fmt(p.entry,r.sym)}. ${sl}`,'ENTRY')}
+      else if(!g.inZone&&g.dist<=1.5&&!AD.sent[base+'P']){AD.sent[base+'P']=Date.now();svS();alarm(`${r.sym} ${dr} setup approaching ${fmt(p.entry,r.sym)}. Get ready. ${sl}`,'PRE')}}
   }finally{AD.busy=false}}
 $('#adBody').addEventListener('click',e=>{const t=e.target.closest('tr[data-s]');if(t){$('#sym').value=t.dataset.s;$('#go').click()}});
 async function wake(){try{AD.wl=await navigator.wakeLock.request('screen')}catch(e){}}
