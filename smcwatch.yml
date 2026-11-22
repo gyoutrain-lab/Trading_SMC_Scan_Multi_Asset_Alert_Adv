@@ -2,7 +2,13 @@ name: SMC watch
 on:
   schedule:
     - cron: '*/5 * * * *'
+  push:
+    paths:
+      - 'index.html'
+      - '.github/workflows/smc-watch.yml'
   workflow_dispatch:
+permissions:
+  contents: read
 concurrency:
   group: smc-watch
   cancel-in-progress: false
@@ -21,20 +27,17 @@ jobs:
           key: smc-profile-${{ github.run_id }}
           restore-keys: smc-profile-
       - run: npm i playwright@1.49.0 && npx playwright install --with-deps chromium
-      - name: Run the SMC page headless and push alerts to ntfy
+      - name: Run index.html headless and push alerts to ntfy
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           cat > watch.mjs <<'JS'
           import {chromium} from 'playwright';
-          import fs from 'node:fs';
           import path from 'node:path';
-          const html=fs.readdirSync('.').find(f=>f.endsWith('.html'));
-          if(!html)throw new Error('Put the SMC .html file in the repo root');
-          if(!process.env.NTFY_TOPIC)throw new Error('Add the NTFY_TOPIC secret');
+          if(!process.env.NTFY_TOPIC)throw new Error('Add the NTFY_TOPIC secret (Settings > Secrets and variables > Actions)');
           const ctx=await chromium.launchPersistentContext('.profile',{headless:true});
           const pg=await ctx.newPage();
-          await pg.goto('file://'+path.resolve(html));
+          await pg.goto('file://'+path.resolve('index.html'));
           await pg.evaluate(t=>localStorage.setItem('adNt',t),process.env.NTFY_TOPIC);
           await pg.reload();
           await pg.click('#adOn');
