@@ -1254,7 +1254,7 @@ async function load(force){
   if(tok!==S.tok)return;const lc=S.candles[S.candles.length-1],pc=data[Math.max(0,data.length-25)].c,chg=(lc.c-pc)/pc*100;
   $('#px').innerHTML=`${fmt(lc.c)} <span class="${chg>=0?'up':'dn'}" style="font-size:12px">${chg>=0?'+':''}${chg.toFixed(2)}%</span>`;
   const key=sym+tf+S.sig.status+'|'+(S.sig.entry!=null?fmt(S.sig.entry):'')+(S.sig.conf?'|C':'')+(S.sig.react?'|R':'');
-  if(S.lastKey!==null&&key!==S.lastKey){const m=`${sym} ${tf}: ${S.sig.status}${S.sig.entry!=null?' @ '+fmt(S.sig.entry):''}${S.sig.react||S.sig.conf?' · CONFIRMED':''}`;log(m);notify(m)}
+  if(S.lastKey!==null&&key!==S.lastKey){const m=`${sym} ${tf}: ${S.sig.status}${S.sig.entry!=null?' @ '+fmt(S.sig.entry):''}`;log(m);if(S.sig.entry!=null&&S.sig.verified)notify(m)}
   else if(S.lastKey===null)log(`Loaded ${sym} ${tf}: ${S.sig.status}`);
   S.lastKey=key;S.offset=Math.min(S.offset,Math.max(0,data.length-20));renderPanel();draw();
   if(S.sig.entry!=null&&S.sig.verified&&!S.demo)autoBT(data,n,tf,sym,()=>tok!==S.tok);
@@ -1508,10 +1508,10 @@ const AD={on:false,busy:false,sent:{},wl:null,ctx:null,ft:null},PIP={'XAU/USD':.
 function svS(){const o={},n=Date.now();for(const k in AD.sent)if(n-AD.sent[k]<216e5)o[k]=AD.sent[k];AD.sent=o;store('adSent',JSON.stringify(o))}
 try{AD.sent=JSON.parse(store('adSent')||'{}');svS()}catch(e){AD.sent={}}
 const card=document.createElement('div');card.className='card';
-card.innerHTML=`<h3>Alert Desk · most active, trending markets first (no API key)</h3><div id="adBody" class="hint">Press Start alerts. It ranks the most active liquid markets (gold, silver, crypto, TradFi perps), drops choppy ones, then applies the SMC gates.</div>
+card.innerHTML=`<h3>Alert Desk · most active, trending markets first (no API key) · r7</h3><div id="adBody" class="hint">Press Start alerts. It ranks the most active liquid markets (gold, silver, crypto, TradFi perps), drops choppy ones, then applies the SMC gates.</div>
 <div class="kv" style="margin-top:8px"><div>Phone</div><div><input id="adPh" style="width:140px"></div><div>ntfy topic (push)</div><div><input id="adNt" style="width:140px" placeholder="your-secret-topic"></div></div>
 <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button class="primary" id="adOn">Start alerts</button><button id="adTest">Test alarm</button><a id="adWa" class="badge" target="_blank" rel="noopener" style="display:none">WhatsApp me</a><a id="adSms" class="badge" style="display:none">SMS me</a></div>
-<div class="hint">A page cannot call or SMS a number by itself. Sound, vibration, voice and notification fire while this page is open (screen kept awake). For a ring while the browser is closed, install the free ntfy app, subscribe to the same topic, and it pushes at urgent priority. WhatsApp/SMS buttons prefill the message; you tap send. No filter can guarantee a setup is not fake: ENTRY fires only when every gate passes.</div>`;
+<div class="hint">A page cannot call or SMS a number by itself. Sound, vibration, voice and notification fire while this page is open (screen kept awake). For a ring while the browser is closed, install the free ntfy app, subscribe to the same topic, and it pushes at urgent priority. WhatsApp/SMS buttons prefill the message; you tap send. No filter can guarantee a setup is not fake. PRE means a candidate is near its zone. ENTRY fires only when the main panel itself says ENTRY POINT · VERIFIED (SMC gates, direction lock, swing desk, backtest edge). CANCEL means an earlier alert is no longer valid. If you also use the GitHub watcher, leave the ntfy topic empty on this page to avoid duplicate pushes.</div>`;
 const anchor=$('#sigCard').closest('.card');anchor.parentNode.insertBefore(card,anchor);
 $('#adPh').value=store('adPh')||'081901685253';$('#adNt').value=store('adNt')||'';
 ['adPh','adNt'].forEach(i=>$('#'+i).addEventListener('input',()=>store(i,$('#'+i).value.trim())));
@@ -1526,7 +1526,7 @@ function alarm(msg,lvl){
   try{navigator.vibrate&&navigator.vibrate(lvl==='ENTRY'?[500,150,500,150,900]:[300,100,300])}catch(e){}
   try{speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(msg))}catch(e){}
   try{if('Notification' in window&&Notification.permission==='granted')new Notification('SMC '+lvl,{body:msg,requireInteraction:true})}catch(e){}
-  const t=$('#adNt').value.trim();if(t)fetch('https://ntfy.sh/'+encodeURIComponent(t),{method:'POST',body:msg,headers:{Title:'SMC '+lvl,Priority:lvl==='ENTRY'?'5':'4',Tags:lvl==='ENTRY'?'rotating_light':'eyes'}}).catch(()=>{});
+  const t=$('#adNt').value.trim();if(t)fetch('https://ntfy.sh/'+encodeURIComponent(t),{method:'POST',body:msg,headers:{Title:'SMC '+lvl,Priority:lvl==='ENTRY'?'5':'4',Tags:lvl==='ENTRY'?'rotating_light':lvl==='CANCEL'?'x':'eyes'}}).catch(()=>{});
   const w=$('#adWa'),s=$('#adSms');w.href='https://wa.me/'+wa()+'?text='+encodeURIComponent(msg);s.href='sms:+'+wa()+'?body='+encodeURIComponent(msg);w.style.display=s.style.display='';
   clearInterval(AD.ft);const t0=document.title;let k=0;AD.ft=setInterval(()=>{document.title=k++%2?t0:'🚨 '+lvl+' '+msg.slice(0,30);if(k>24){clearInterval(AD.ft);document.title=t0}},700);log('ALERT '+lvl+': '+msg)}
 async function universe(){
@@ -1560,15 +1560,23 @@ async function run(){
     const R=[];for(let i=0;i<U.length;i+=4)R.push(...await Promise.all(U.slice(i,i+4).map(u=>one(u,ss).catch(e=>({sym:u.sym,err:e.message,sc:-1})))));
     R.sort((a,b)=>b.sc-a.sc);const ok=R.filter(r=>!r.err),best=ok.find(r=>r.sg.entry!=null&&!r.chop)||ok.find(r=>r.sg.plan&&!r.chop)||ok[0];
     const tr=r=>r.chop?'<span class="warn">CHOP</span>':r.ht>0?'<span class="up">Bull</span>':r.ht<0?'<span class="dn">Bear</span>':'–';
-    let h=`<div><b>${ss[0]}</b> · scanned ${ok.length} market${ok.length>1?'s':''} · feed ${BN.src||'?'} · ${new Date().toLocaleTimeString()}</div>${fb?'<div class="hint warn">Market-wide scan unavailable (ticker feeds blocked here), so only gold and silver are scanned. Turn on Cloudflare WARP or Private DNS one.one.one.one, then reload.</div>':''}<div style="overflow-x:auto"><table><thead><tr><th>Asset</th><th>Score</th><th>24h</th><th>Trend</th><th>Trendiness</th><th>Status</th></tr></thead><tbody>`+ok.slice(0,10).map(r=>`<tr data-s="${r.sym}" style="cursor:pointer"><td>${r.sym}${r===best?' ★':''}</td><td>${r.sc}</td><td class="${r.chg>=0?'up':'dn'}">${r.chg.toFixed(1)}%</td><td>${tr(r)}</td><td>${(r.er*100).toFixed(0)}%</td><td>${esc(r.sg.status)}${r.sg.verified?' · verified':''}</td></tr>`).join('')+'</tbody></table></div>';
+    let h=`<div><b>${ss[0]}</b> · scanned ${ok.length} market${ok.length>1?'s':''} · feed ${BN.src||'?'} · build r7 · ${new Date().toLocaleTimeString()}</div>${fb?'<div class="hint warn">Market-wide scan unavailable (ticker feeds blocked here), so only gold and silver are scanned. Turn on Cloudflare WARP or Private DNS one.one.one.one, then reload.</div>':''}<div style="overflow-x:auto"><table><thead><tr><th>Asset</th><th>Score</th><th>24h</th><th>Trend</th><th>Trendiness</th><th>Status (15m)</th></tr></thead><tbody>`+ok.slice(0,10).map(r=>`<tr data-s="${r.sym}" style="cursor:pointer"><td>${r.sym}${r===best?' ★':''}</td><td>${r.sc}</td><td class="${r.chg>=0?'up':'dn'}">${r.chg.toFixed(1)}%</td><td>${tr(r)}</td><td>${(r.er*100).toFixed(0)}%</td><td>${esc(r.sg.status)}${r.sg.verified?' · verified':''}</td></tr>`).join('')+'</tbody></table></div>';
     h+=best&&best.sg.plan?levels(best):'<div class="hint">No verified, non-choppy plan yet. Waiting; nothing is forced. Tap a row to open its chart.</div>';
     $('#adBody').innerHTML=h;
-    for(const r of ok){const g=r.sg,met=/^(XAU|XAG)/.test(r.sym);if(!g.plan||!g.verified||r.chop||r.ht!==g.dir||(met&&ss[1]<.5))continue;const p=g.plan,dr=g.dir>0?'BUY':'SELL',base=r.sym+dr+fmt(p.entry,r.sym);
-      const sl=`SL ${fmt(p.sl,r.sym)} TP1 ${fmt(p.tp1,r.sym)} TP2 ${fmt(p.tp2,r.sym)}`;
-      if(g.inZone&&(g.conf||g.react)&&g.grade==='A'&&!AD.sent[base+'E']){AD.sent[base+'E']=Date.now();svS();alarm(`${r.sym} ${dr} ENTRY confirmed at ${fmt(p.entry,r.sym)}. ${sl}`,'ENTRY')}
-      else if(!g.inZone&&g.dist<=1.5&&!AD.sent[base+'P']){AD.sent[base+'P']=Date.now();svS();alarm(`${r.sym} ${dr} setup approaching ${fmt(p.entry,r.sym)}. Get ready. ${sl}`,'PRE')}}
+    const good=r=>{const g=r.sg,met=/^(XAU|XAG)/.test(r.sym);return g.entry!=null&&/SETUP$/.test(g.status)&&g.verified&&g.grade==='A'&&!r.chop&&r.ht===g.dir&&!(met&&ss[1]<.5)};
+    const C=ok.filter(good).sort((x,y)=>y.sc-x.sc),cur=ok.find(r=>r.sym===AD.cand);
+    if(AD.cand&&!(cur&&good(cur))){const lk=AD.cand+'LIVE';if(AD.sent[lk]){delete AD.sent[lk];svS();alarm(`${AD.cand} 15m: earlier alert is CANCELLED. Setup is no longer valid${cur?' ('+cur.sg.status+')':''}. Do not enter; protect any open trade.`,'CANCEL')}AD.cand=null}
+    if(!AD.cand&&C.length)AD.cand=C[0].sym;
+    if(AD.cand){const r=ok.find(x=>x.sym===AD.cand),g=r.sg,p=g.plan,dr=g.dir>0?'BUY':'SELL',base=r.sym+dr+fmt(p.entry,r.sym),lk=r.sym+'LIVE',sl=`SL ${fmt(p.sl,r.sym)} TP1 ${fmt(p.tp1,r.sym)} TP2 ${fmt(p.tp2,r.sym)}`;
+      if(S.sym!==r.sym||$('#tf').value!=='15m'){$('#sym').value=r.sym;$('#tf').value='15m';S.mode='live';S.lastKey=null;AD.ld=Date.now();await load(true)}
+      else if(Date.now()-(AD.ld||0)>40000){AD.ld=Date.now();await load(true)}
+      let vd={t:'checking',s:''};try{vd=verdict(S.sig)}catch(e){}
+      const fin=S.sym===r.sym&&S.sig&&S.sig.entry!=null&&S.sig.dir===g.dir&&/^ENTRY POINT/.test(vd.t);
+      if(fin&&!AD.sent[base+'E']){AD.sent[base+'E']=Date.now();AD.sent[lk]=Date.now();svS();alarm(`${r.sym} 15m ${dr} ENTRY. The main panel says ${vd.t.replace(/ ·.*/,'')}. Entry ${fmt(p.entry,r.sym)}. ${sl}`,'ENTRY')}
+      else if(!fin&&!g.inZone&&g.dist<=1.5&&!AD.sent[base+'P']){AD.sent[base+'P']=Date.now();AD.sent[lk]=Date.now();svS();alarm(`${r.sym} 15m ${dr} setup is approaching ${fmt(p.entry,r.sym)}. Not an entry yet. ${sl}`,'PRE')}
+      $('#adBody').insertAdjacentHTML('beforeend',`<div class="hint">Final check (same as the main panel) for ${r.sym}: <b>${esc(vd.t)}</b> ${esc((vd.s||'').slice(0,170))}</div>`)}
   }finally{AD.busy=false}}
-$('#adBody').addEventListener('click',e=>{const t=e.target.closest('tr[data-s]');if(t){$('#sym').value=t.dataset.s;$('#go').click()}});
+$('#adBody').addEventListener('click',e=>{const t=e.target.closest('tr[data-s]');if(t){$('#sym').value=t.dataset.s;$('#tf').value='15m';$('#go').click()}});
 async function wake(){try{AD.wl=await navigator.wakeLock.request('screen')}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(AD.on&&document.visibilityState==='visible')wake()});
 $('#adOn').addEventListener('click',()=>{AD.on=!AD.on;$('#adOn').textContent=AD.on?'Stop alerts':'Start alerts';
